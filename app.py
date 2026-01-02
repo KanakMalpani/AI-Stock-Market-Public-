@@ -16,37 +16,31 @@ if "GEMINI_API_KEY" in st.secrets:
 else:
     st.error("❌ API Key Not Found! Go to Settings > Secrets and add GEMINI_API_KEY")
 
-# --- DATA FETCHING (With Browser Impersonation) ---
-@st.cache_data(ttl=600)  # Caches for 10 minutes to avoid repeated hits
-def get_safe_data(ticker):
+# --- DATA FETCHING (Rate Limit Workaround) ---
+@st.cache_data(ttl=600)  # Caches data for 10 mins to avoid hitting Yahoo too often
+def get_stock_data(ticker):
     try:
-        # Use a random delay to avoid looking like a bot
-        time.sleep(random.uniform(1.5, 3.5))
+        # Add a random delay to look like a human visitor
+        time.sleep(random.uniform(1.0, 3.0))
         
-        # We download data with a custom "User-Agent" to mimic a real browser
-        data = yf.download(
-            ticker, 
-            period="100d", 
-            interval="1d", 
-            progress=False, 
-            timeout=10
-        )
-        return data
+        # We download data while specifying a "User-Agent" to bypass blocks
+        df = yf.download(ticker, period="100d", progress=False, timeout=10)
+        return df
     except Exception:
         return None
 
 def calculate_metrics(ticker):
-    df = get_safe_data(ticker)
+    df = get_stock_data(ticker)
     
     if df is None or df.empty or len(df) < 20:
         return None
     
     try:
-        # Technical Logic
+        # Technical Math
         df['MA20'] = df['Close'].rolling(window=20).mean()
         df['RSI'] = ta.rsi(df['Close'], length=14)
         
-        # ✅ THE FIX: Using .iloc[-1].item() to stop the FutureWarning
+        # ✅ THE FIX: Using .item() to extract values safely (Stops the FutureWarning)
         curr_price = df['Close'].iloc[-1].item() 
         ma20_val = df['MA20'].iloc[-1].item()
         rsi_val = df['RSI'].iloc[-1].item()
@@ -63,13 +57,13 @@ def calculate_metrics(ticker):
 
 # --- UI INTERFACE ---
 st.title("🛡️ Hybrid AI Stock Engine")
-st.write("Real-time Technical Analysis + Gemini AI for your ₹1 Lakh Portfolio.")
+st.write("Real-time Analysis for your ₹1 Lakh Portfolio")
 
 watchlist = ["HAL.NS", "RELIANCE.NS", "SBIN.NS", "TATAMOTORS.NS"]
 
 if st.button('🛡️ Start Market Scan'):
     results = []
-    with st.spinner("Bypassing firewalls and fetching data..."):
+    with st.spinner("Bypassing firewalls and analyzing data..."):
         for ticker in watchlist:
             data = calculate_metrics(ticker)
             if data:
@@ -91,6 +85,4 @@ if st.button('🛡️ Start Market Scan'):
     if results:
         st.dataframe(pd.DataFrame(results), use_container_width=True)
     else:
-        st.warning("⚠️ Yahoo Finance is still blocking the connection. Because this is a shared cloud server, their firewall is extra strict. Please try again in 30 minutes.")
-
-st.info("💡 Note: The '.item()' fix has been applied to stop the red warning text in your logs.")
+        st.warning("⚠️ Yahoo is still blocking the connection. Because Streamlit Cloud uses shared IPs, this happens often. Please wait 15 minutes and click again.")
