@@ -3,3 +3,4 @@ yfinance
 pandas_ta
 google-generativeai
 requests
+curl_cffi
